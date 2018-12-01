@@ -98,13 +98,18 @@ def download_pictures(data,dirName):
         
         print("发现微博中有 %s 图片------"%pic_count)
         create_at   = data["created_at"]
-        if create_at.find("小时前") != -1 :
+        if create_at.find("小时前") != -1 : # 最近二天 格式
             before_hours = int( create_at.split("小")[0] )
             create_at = (datetime.datetime.now()+datetime.timedelta(hours= -before_hours )).strftime("%Y-%m-%d")
         else:
-            year = time.strftime('%Y',time.localtime(time.time()))
-            create_at = "%s-%s"%(year,create_at)
-            
+            which = create_at.split('-')
+            if(len(which) == 1 ):      # 今年的 都是 '11-09' 之类的格式         
+                year = time.strftime('%Y',time.localtime(time.time()))
+                create_at = "%s-%s"%(year,create_at)
+            elif(len(which)== 2 ):    # 去年的  都是 '2017-11-09' 之类的格式
+                pass   
+            else:
+                pass            
         for picIndex in range(pic_count):
             isLongText = bool(data.get('isLongText'))
             if (not isLongText):
@@ -218,10 +223,9 @@ def get_weiboAllPictureByUID(id):
 
 def main():
     init_proxiesPOOLs()
-    uid_list = ['3942238643']
-    for uid in id_list: 
-        get_weiboAllPictureByUID(uid)
-
+    id_list = ['3942238643']
+    for id in id_list: 
+        get_weiboAllPictureByUID(id)
     
 if __name__=="__main__":
     main()
