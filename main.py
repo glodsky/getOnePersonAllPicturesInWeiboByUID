@@ -8,8 +8,27 @@ import random
 import os
 import re
 import requests  
-
+Proxies_POOLs =[]
 count = 0  # 记录下载的图片数量
+
+def init_proxiesPOOLs():
+    #初始化IP代理池
+    global Proxies_POOLs
+    with open('./prxies_pools.csv','r') as f:
+        contents = f.readlines()
+        f.close()
+    num = len(contents)
+    for i in range(num):
+        details = contents[i].split(',')
+        proxy= {details[2].strip('\n') :"%s:%s"%(details[0],details[1])}
+        Proxies_POOLs.append(proxy)     
+    print ( Proxies_POOLs[32])
+
+def get_OneProxy(): #返回一个 代理
+    global Proxies_POOLs
+    proxy_pools_length  = len(Proxies_POOLs)
+    return Proxies_POOLs[random.randint(0,proxy_pools_length-1)]
+
 
 #定义页面打开函数
 def use_proxy(url):
@@ -46,7 +65,24 @@ def save_imgs_description(filename,content):
         with open(filename,'a',encoding="utf-8") as fn:
             fn.write(content)
             fn.close()
+            
+def filter_Non_BMP_Characters(target):    
+    non_bmp_map = dict.fromkeys(range(0x10000, sys.maxunicode + 1), 0xfffd)
+    name=target.translate(non_bmp_map)
+    return name
 
+def update_someDirs_Include_Hourses(parentdirname,new_parts):
+    #判断是非有必要重命名更新 过去下载的包含 "**前" 的文件夹名为具体日期
+    dp = os.listdir(parentdirname)
+    for x in dp:
+            #target = filter_Non_BMP_Characters(x)
+            if target.find('小时前')!= -1 :
+                    tempname_0 = target[0:target.find('小时前')-1]
+                    tempname_1 = target[target.find('小时前')-1 :]
+                    newdirname = parentdirname + '/' + new_parts + tempname_1
+                    src = parentdirname + '/'+ x
+                    os.rename(src,newdirname)
+    
 def download_pictures(data,dirName):
     global count
     try:
@@ -61,7 +97,14 @@ def download_pictures(data,dirName):
             return
         
         print("发现微博中有 %s 图片------"%pic_count)
-        create_at   = data["created_at"]  
+        create_at   = data["created_at"]
+        if create_at.find("小时前") != -1 :
+            before_hours = int( create_at.split("小")[0] )
+            create_at = (datetime.datetime.now()+datetime.timedelta(hours= -before_hours )).strftime("%Y-%m-%d")
+        else:
+            year = time.strftime('%Y',time.localtime(time.time()))
+            create_at = "%s-%s"%(year,create_at)
+            
         for picIndex in range(pic_count):
             isLongText = bool(data.get('isLongText'))
             if (not isLongText):
@@ -78,11 +121,11 @@ def download_pictures(data,dirName):
                 img_text = text  
                 text = text[0:20].strip()                                
             picDirShort = re.sub('[\/:*?"<>|]','_',text).replace(" ","")                            
+            picDirName = u"%s/%s_%s"%(dirName,create_at,picDirShort) 
             #创建次级目录用于保存 该条微薄中所有图片
-            picDirName = u"%s/%s_%s"%(dirName,create_at,picDirShort)
             if not os.path.exists(picDirName):
                 os.mkdir(picDirName)
-                #print(u"创建目录:  %s"%picDirName)
+            
             pic_descriptions = "%s/描述.txt"%picDirName
             save_imgs_description(pic_descriptions,img_text)
             
@@ -123,6 +166,7 @@ def get_weiboAllPictureByUID(id):
         weibo_url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+id+'&containerid=' + get_containerid(url) + '&page='+str(i)
         print(url)
         print( weibo_url)
+        #return
         try:
             data=use_proxy(weibo_url)
             content = json.loads(data).get('data')            
@@ -173,10 +217,11 @@ def get_weiboAllPictureByUID(id):
     print('共计：%s'%count)
 
 def main():
-    id_list = ['3942238643']
-    for id in id_list: 
-        get_weiboAllPictureByUID(id)
-        return 0
+    init_proxiesPOOLs()
+    uid_list = ['3942238643']
+    for uid in id_list: 
+        get_weiboAllPictureByUID(uid)
+
     
 if __name__=="__main__":
     main()
