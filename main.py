@@ -52,13 +52,13 @@ def get_detailContent(detail_url):
     try:
         data=use_proxy(detail_url) 
         if not data.find('微博正文 - 微博HTML5版'):
-            return '[该条已经被和谐咯] '
+            return ''
         content = json.loads(data).get('data')
         longTextContent=content.get('longTextContent')
         return longTextContent
     except Exception as e:
         print(e)
-        return '[该条已经被和谐咯]'
+        return ''
 
 def save_imgs_description(filename,content):
     if content.strip() != "":
@@ -71,18 +71,6 @@ def filter_Non_BMP_Characters(target):
     name=target.translate(non_bmp_map)
     return name
 
-def update_someDirs_Include_Hourses(parentdirname,new_parts):
-    #判断是非有必要重命名更新 过去下载的包含 "**前" 的文件夹名为具体日期
-    dp = os.listdir(parentdirname)
-    for x in dp:
-            #target = filter_Non_BMP_Characters(x)
-            if target.find('小时前')!= -1 :
-                    tempname_0 = target[0:target.find('小时前')-1]
-                    tempname_1 = target[target.find('小时前')-1 :]
-                    newdirname = parentdirname + '/' + new_parts + tempname_1
-                    src = parentdirname + '/'+ x
-                    os.rename(src,newdirname)
-    
 def download_pictures(data,dirName):
     global count
     try:
@@ -117,7 +105,11 @@ def download_pictures(data,dirName):
             else:
                 idstr = data.get('idstr')
                 detail_url = 'https://m.weibo.cn/statuses/extend?id='+str(idstr)
-                text = get_detailContent(detail_url)
+                detail_text =  get_detailContent(detail_url)
+                if detail_text != "":
+                    text = detail_text
+                else:
+                    text = ""
             picDirShort = ""
             if len(text)<1:
                 text = " "
@@ -125,7 +117,7 @@ def download_pictures(data,dirName):
             if len(text) > 20:
                 img_text = text  
                 text = text[0:20].strip()                                
-            picDirShort = re.sub('[\/:*?"<>|]','_',text).replace(" ","")                            
+            picDirShort = re.sub('[\/:*?"<>|]','_',filter_Non_BMP_Characters(text)).replace(" ","")                            
             picDirName = u"%s/%s_%s"%(dirName,create_at,picDirShort) 
             #创建次级目录用于保存 该条微薄中所有图片
             if not os.path.exists(picDirName):
@@ -146,7 +138,6 @@ def download_pictures(data,dirName):
             print(u"开始下载 %s    :  第%s张图片"%(picDirShort,picIndex+1))
             stime = time.perf_counter()
             print(u"%s downloading ......"% datetime.datetime.now().strftime('[%H:%M:%S]'))
-    ##                            print(u"%s"%picName)
             print("%s"%cur_pic_large_url)                            
             response = requests.get(cur_pic_large_url)
             if response.status_code == 200:
@@ -163,12 +154,12 @@ def download_pictures(data,dirName):
         print(e)
             
     
-def get_weiboAllPictureByUID(id):
+def get_weiboAllPictureByUID(uid):
     global count
     i=1
     while True:
-        url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+id
-        weibo_url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+id+'&containerid=' + get_containerid(url) + '&page='+str(i)
+        url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+uid
+        weibo_url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+uid+'&containerid=' + get_containerid(url) + '&page='+str(i)
         print(url)
         print( weibo_url)
         #return
@@ -185,7 +176,7 @@ def get_weiboAllPictureByUID(id):
                 user = mblog0.get("user")
                 screen_name = user["screen_name"].strip().replace(" ","")
                 description = re.sub('[\/:*?"<>|，：、“”]','_',user["description"]).replace(" ","")
-                dirName =  u"%s/%s_%s"%(os.curdir,id,screen_name)
+                dirName =  u"%s/%s_%s"%(os.curdir,uid,screen_name)
                 print ("dirName=%s"%dirName)
                 if not os.path.exists(dirName):
                     os.mkdir(dirName)
@@ -200,12 +191,10 @@ def get_weiboAllPictureByUID(id):
                             if "retweeted_status" in mblog:
                                 print("发现  转载图片")
                                 download_pictures(mblog.get("retweeted_status"),dirName)
-                                print(">    >>     >>>     >>>>  ")
                             else:
                                 continue
                         else:                          
                             download_pictures(mblog,dirName)                        
-                            print("+  ++  +++   ++++")
             else:
                 pass
             
@@ -224,8 +213,8 @@ def get_weiboAllPictureByUID(id):
 def main():
     init_proxiesPOOLs()
     id_list = ['3942238643']
-    for id in id_list: 
-        get_weiboAllPictureByUID(id)
+    for uid in id_list: 
+        get_weiboAllPictureByUID(uid)
     
 if __name__=="__main__":
     main()
