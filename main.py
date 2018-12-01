@@ -85,19 +85,25 @@ def download_pictures(data,dirName):
             return
         
         print("发现微博中有 %s 图片------"%pic_count)
+        #创建日期格式 全部修正为 年-月-日 格式
         create_at   = data["created_at"]
         if create_at.find("小时前") != -1 : # 最近二天 格式
             before_hours = int( create_at.split("小")[0] )
             create_at = (datetime.datetime.now()+datetime.timedelta(hours= -before_hours )).strftime("%Y-%m-%d")
+        elif create_at.find("分钟前")!= -1:
+            create_at = datetime.datetime.now().strftime("%Y-%m-%d")
+        elif create_at.find("昨天") != -1 :
+            create_at = (datetime.datetime.now()+datetime.timedelta(days= -1 )).strftime("%Y-%m-%d")
         else:
             which = create_at.split('-')
-            if(len(which) == 1 ):      # 今年的 都是 '11-09' 之类的格式         
+            if(len(which) == 2 ):      # 今年的 都是 '11-09' 之类的格式         
                 year = time.strftime('%Y',time.localtime(time.time()))
                 create_at = "%s-%s"%(year,create_at)
-            elif(len(which)== 2 ):    # 去年的  都是 '2017-11-09' 之类的格式
+            elif(len(which)== 3 ):    # 去年的  都是 '2017-11-09' 之类的格式
                 pass   
             else:
-                pass            
+                pass 
+            
         for picIndex in range(pic_count):
             isLongText = bool(data.get('isLongText'))
             if (not isLongText):
