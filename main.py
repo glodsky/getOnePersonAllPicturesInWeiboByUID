@@ -7,7 +7,7 @@ import datetime
 import random
 import os
 import re
-import requests  
+import requests
 import sys
 
 Proxies_POOLs =[]
@@ -44,11 +44,17 @@ def use_proxy(url):
 def get_containerid(url):
     data=use_proxy(url)
     content=json.loads(data).get('data')
-    tabs = content.get('tabsInfo').get('tabs')
-    for data in tabs:
-        if(data.get('tab_type')=='weibo'):
-            containerid=data.get('containerid')
-    return containerid
+    ok = json.loads(data).get('ok')
+    if ok == 1:
+        tabs = content.get('tabsInfo').get('tabs')
+        for data in tabs:
+            if(data.get('tab_type')=='weibo'):
+                containerid=data.get('containerid')
+                return containerid        
+        return 0
+    else:
+        print("error At : %s\n data:%s"%(url,data))
+        return 0
 
 def get_detailContent(detail_url):
     try:
@@ -71,7 +77,27 @@ def save_imgs_description(filename,content):
 def filter_Non_BMP_Characters(target):    
     non_bmp_map = dict.fromkeys(range(0x10000, sys.maxunicode + 1), 0xfffd)
     name=target.translate(non_bmp_map)
-    return name
+    return name 
+
+def format_createdDate(targetDate):
+    create_at   = targetDate
+    if create_at.find("小时前") != -1 : # 最近二天 格式
+        before_hours = int( create_at.split("小")[0] )
+        create_at = (datetime.datetime.now()+datetime.timedelta(hours= -before_hours )).strftime("%Y-%m-%d")
+    elif create_at.find("分钟前")!= -1:
+        create_at = datetime.datetime.now().strftime("%Y-%m-%d")
+    elif create_at.find("昨天") != -1 :
+        create_at = (datetime.datetime.now()+datetime.timedelta(days= -1 )).strftime("%Y-%m-%d")
+    else:
+        which = create_at.split('-')
+        if(len(which) == 2 ):      # 今年的 都是 '11-09' 之类的格式         
+            year = time.strftime('%Y',time.localtime(time.time()))
+            create_at = "%s-%s"%(year,create_at)
+        elif(len(which)== 3 ):    # 去年的  都是 '2017-11-09' 之类的格式
+            pass
+        else:
+            pass
+    return create_at
 
 def download_pictures(data,dirName):
     global count
@@ -87,25 +113,8 @@ def download_pictures(data,dirName):
             return
         
         print("发现微博中有 %s 图片------"%pic_count)
-        #创建日期格式 全部修正为 年-月-日 格式
-        create_at   = data["created_at"]
-        if create_at.find("小时前") != -1 : # 最近二天 格式
-            before_hours = int( create_at.split("小")[0] )
-            create_at = (datetime.datetime.now()+datetime.timedelta(hours= -before_hours )).strftime("%Y-%m-%d")
-        elif create_at.find("分钟前")!= -1:
-            create_at = datetime.datetime.now().strftime("%Y-%m-%d")
-        elif create_at.find("昨天") != -1 :
-            create_at = (datetime.datetime.now()+datetime.timedelta(days= -1 )).strftime("%Y-%m-%d")
-        else:
-            which = create_at.split('-')
-            if(len(which) == 2 ):      # 今年的 都是 '11-09' 之类的格式         
-                year = time.strftime('%Y',time.localtime(time.time()))
-                create_at = "%s-%s"%(year,create_at)
-            elif(len(which)== 3 ):    # 去年的  都是 '2017-11-09' 之类的格式
-                pass   
-            else:
-                pass 
-            
+        created_at   = data.get("created_at")
+        created_at= format_createdDate(created_at)      
         for picIndex in range(pic_count):
             isLongText = bool(data.get('isLongText'))
             if (not isLongText):
@@ -126,7 +135,7 @@ def download_pictures(data,dirName):
                 img_text = text  
                 text = text[0:20].strip()                                
             picDirShort = re.sub('[\/:*?"<>|]','_',filter_Non_BMP_Characters(text)).replace(" ","")                            
-            picDirName = u"%s/%s_%s"%(dirName,create_at,picDirShort) 
+            picDirName = u"%s/%s_%s"%(dirName,created_at,picDirShort) 
             #创建次级目录用于保存 该条微薄中所有图片
             if not os.path.exists(picDirName):
                 os.mkdir(picDirName)
@@ -146,6 +155,7 @@ def download_pictures(data,dirName):
             print(u"开始下载 %s    :  第%s张图片"%(picDirShort,picIndex+1))
             stime = time.perf_counter()
             print(u"%s downloading ......"% datetime.datetime.now().strftime('[%H:%M:%S]'))
+    ##                            print(u"%s"%picName)
             print("%s"%cur_pic_large_url)                            
             response = requests.get(cur_pic_large_url)
             if response.status_code == 200:
@@ -166,14 +176,21 @@ def get_weiboAllPictureByUID(uid):
     global count
     i=1
     while True:
-        url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+uid
-        weibo_url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+uid+'&containerid=' + get_containerid(url) + '&page='+str(i)
-        print(url)
-        print( weibo_url)
-        #return
+        url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+ uid
+        containerid = get_containerid(url)
+        if containerid != 0:
+            weibo_url='https://m.weibo.cn/api/container/getIndex?type=uid&value='+uid+'&containerid='+ str(containerid)+'&page='+str(i)
+        else:
+            break
+        
         try:
-            data=use_proxy(weibo_url)
-            content = json.loads(data).get('data')            
+            pdata=json.loads(use_proxy(weibo_url))
+            ok = pdata.get('ok')
+            msg =pdata.get('msg')
+            if ok == 0:
+                print("msg: %s\n"%msg)
+                break            
+            content = pdata.get('data')       
             cards=content.get('cards')
             cards_len = len(cards)
             print("cards_len=%s"%cards_len)
@@ -198,11 +215,12 @@ def get_weiboAllPictureByUID(uid):
                             print("-----当前微博中没有  原创图片")
                             if "retweeted_status" in mblog:
                                 print("发现  转载图片")
-                                download_pictures(mblog.get("retweeted_status"),dirName)
+                                download_pictures(mblog.get("retweeted_status"),dirName)                  
                             else:
                                 continue
                         else:                          
-                            download_pictures(mblog,dirName)                        
+                            download_pictures(mblog,dirName)                       
+   
             else:
                 pass
             
@@ -220,9 +238,10 @@ def get_weiboAllPictureByUID(uid):
 
 def main():
     init_proxiesPOOLs()
-    id_list = ['3942238643']
+    id_list = ['3942238643']  
     for uid in id_list: 
         get_weiboAllPictureByUID(uid)
+        return 0
     
 if __name__=="__main__":
     main()
