@@ -8,6 +8,8 @@ import random
 import os
 import re
 import requests  
+import sys
+
 Proxies_POOLs =[]
 count = 0  # 记录下载的图片数量
 
